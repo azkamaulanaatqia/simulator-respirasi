@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulasi Sistem Kontrol Respirasi</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<style>
+  :root{
+    --bg:#eceff3;
+    --panel:#f7f8fa;
+    --white:#ffffff;
+    --border:#b8bec8;
+    --border-soft:#d5dae1;
+    --text:#222222;
+    --muted:#586070;
+    --blue:#1f5fa8;
+    --font:"Segoe UI", Tahoma, Arial, sans-serif;
+    --mono:Consolas, "Courier New", monospace;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; overflow:hidden; }
+  body{ font:13px/1.45 var(--font); color:var(--text); background:var(--bg); }
+  #app{ display:flex; flex-direction:column; height:100vh; }
+
+  /* ---------- header ---------- */
+  header{ background:var(--white); border-bottom:1px solid var(--border); padding:10px 16px 0; }
+  header h1{ margin:0; font-size:17px; font-weight:600; }
+  header .sub{ font-size:12px; color:var(--muted); margin-top:1px; }
+  .tabs{ display:flex; gap:2px; margin-top:10px; }
+  .tab{
+    font:inherit; padding:6px 16px; border:1px solid var(--border); border-bottom:none;
+    background:#e2e6ec; color:#333; cursor:pointer; border-radius:3px 3px 0 0;
+  }
+  .tab:hover{ background:#d8dde5; }
+  .tab.active{ background:var(--bg); font-weight:600; position:relative; top:1px; }
+
+  #body{ display:flex; flex:1; min-height:0; }
+
+  /* ---------- sidebar ---------- */
+  #side{
+    width:330px; min-width:330px; background:var(--panel);
+    border-right:1px solid var(--border); overflow-y:auto; padding:12px;
+  }
+  .panel{ display:none; }
+  .panel.show{ display:block; }
+  #side p.desc{ margin:0 0 12px; font-size:12.5px; color:#333; }
+  fieldset{
+    margin:0 0 12px; padding:8px 12px 10px; background:var(--white);
+    border:1px solid var(--border-soft); border-radius:2px;
+  }
+  legend{ font-weight:600; padding:0 4px; font-size:13px; }
+  .row{ margin-bottom:10px; }
+  .row:last-child{ margin-bottom:0; }
+  .row .top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:3px; }
+  .row .val{ font-family:var(--mono); font-size:12.5px; color:var(--blue); }
+  input[type=range]{ width:100%; margin:0; accent-color:var(--blue); }
+  select{
+    width:100%; font:inherit; padding:4px 6px; border:1px solid #8f98a5; border-radius:2px; background:#fff;
+  }
+  .note{ font-size:11.5px; color:var(--muted); margin:8px 0 0; line-height:1.45; }
+  .eq{
+    background:#fff; border:1px solid var(--border-soft); border-radius:2px;
+    padding:9px 6px 7px; margin:8px 0 2px; overflow-x:auto; text-align:center;
+  }
+  .eq .katex-display{ margin:0; }
+  .eq-fallback{ font-family:var(--mono); font-size:12px; color:var(--text); text-align:left; }
+  .radio{ display:block; margin-bottom:5px; cursor:pointer; }
+  .radio input{ margin-right:6px; }
+  .disabled{ opacity:0.45; pointer-events:none; }
+  button.std{
+    font:inherit; padding:5px 14px; border:1px solid #7f8896; background:#f0f2f5;
+    border-radius:3px; cursor:pointer; color:#222;
+  }
+  button.std:hover{ background:#e2e6ec; }
+  button.std + button.std{ margin-left:6px; }
+
+  /* ---------- konten utama ---------- */
+  #main{ flex:1; min-width:0; overflow-y:auto; padding:14px 16px 30px; }
+  .view{ display:none; }
+  .view.show{ display:block; }
+  .top-grid{ display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:14px; align-items:start; }
+  figure{ margin:0; background:var(--white); border:1px solid var(--border-soft); padding:8px; }
+  .stage{
+    position:relative; height:clamp(340px, 52vh, 520px);
+    background:linear-gradient(180deg, #ffffff 0%, #f0f3f7 100%);
+    border:1px solid var(--border-soft);
+  }
+  .stage canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  figcaption, .cap{ font-size:12px; color:#333; margin-top:6px; line-height:1.45; }
+  figcaption b, .cap b{ font-weight:600; }
+
+  table.stat{ width:100%; border-collapse:collapse; background:var(--white); font-size:12.5px; }
+  table.stat caption{ text-align:left; font-size:12px; padding-bottom:5px; caption-side:top; }
+  table.stat caption b{ font-weight:600; }
+  table.stat td{ border:1px solid var(--border-soft); padding:4px 8px; }
+  table.stat td:first-child{ background:#f3f5f8; width:52%; }
+  table.stat td:last-child{ font-family:var(--mono); font-size:12px; text-align:right; }
+  .phase-tag{ display:inline-block; padding:0 8px; border-radius:2px; font-family:var(--font); font-size:12px; }
+  .phase-tag.insp{ background:#dbe8fb; color:#17408a; }
+  .phase-tag.exp{ background:#fde2df; color:#8f1d12; }
+  .phase-tag.zg{ background:#d7f0dc; color:#1e6b34; }
+  .phase-tag.zy{ background:#fdf0c4; color:#6f5200; }
+  .phase-tag.zr{ background:#f9d0cb; color:#8f1d12; }
+
+  h2.sec{
+    font-size:14px; font-weight:600; margin:18px 0 10px; padding-bottom:4px;
+    border-bottom:1px solid var(--border);
+  }
+  .charts{ display:grid; grid-template-columns:repeat(auto-fit, minmax(400px, 1fr)); gap:14px; }
+  .chart-card{ background:var(--white); border:1px solid var(--border-soft); padding:8px 10px 8px; min-width:0; }
+  .chart-card.wide{ grid-column:1/-1; }
+  .legend{ display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; color:#333; margin-bottom:2px; }
+  .legend i{ display:inline-block; width:16px; height:0; border-top:2.5px solid; margin-right:5px; vertical-align:3px; }
+  canvas.chart{ width:100%; height:225px; display:block; }
+
+  /* diagram blok */
+  .bd{ width:100%; height:auto; display:block; }
+  .bd .bx{ fill:#fff; stroke:#222; stroke-width:1.2; }
+  .bd .bx.plant{ fill:#eef2f7; }
+  .bd .bx.dist{ stroke-dasharray:4 3; }
+  .bd .ln{ stroke:#222; stroke-width:1.3; fill:none; }
+  .bd .ln.fb{ stroke:#555; }
+  .bd .ln.dist{ stroke:#a3281a; }
+  .bd .t1{ fill:#222; font:600 11.5px "Segoe UI", Arial, sans-serif; }
+  .bd .t2{ fill:#17408a; font:600 12px Consolas, "Courier New", monospace; }
+  .bd .t3{ fill:#444; font:11px Consolas, "Courier New", monospace; }
+
+  @media (max-width:1100px){
+    .top-grid{ grid-template-columns:1fr; }
+  }
+  @media (max-width:800px){
+    #body{ flex-direction:column; }
+    #side{ width:100%; min-width:0; max-height:44vh; border-right:none; border-bottom:1px solid var(--border); }
+    .charts{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1>Simulasi Sistem Kontrol Respirasi</h1>
+    <div class="sub">Kontrol PID laju napas dan alat asma dengan paru-paru sebagai plant</div>
+    <div class="tabs" role="tablist">
+      <button class="tab active" id="tab1" role="tab" aria-selected="true">Simulasi 1: Respirasi normal</button>
+      <button class="tab" id="tab2" role="tab" aria-selected="false">Simulasi 2: Paru asma dan alat asma</button>
+    </div>
+  </header>
+
+  <div id="body">
+
+    <!-- ============ SIDEBAR ============ -->
+    <div id="side">
+
+      <!-- panel simulasi 1 -->
+      <div class="panel show" id="panel1">
+        <p class="desc">Laju napas (RR) tidak diatur langsung. RR dihitung oleh kontroler PID yang mengejar target (setpoint) yang dipilih, dan kecepatan animasi mengikuti RR hasil PID secara real-time.</p>
+
+        <fieldset>
+          <legend>Setpoint laju napas</legend>
+          <div class="row">
+            <label for="sc1-select">Skenario</label>
+            <select id="sc1-select"></select>
+          </div>
+          <div class="row">
+            <div class="top"><label for="rr-slider">Target laju napas (r)</label><span class="val" id="v-rr">14 /menit</span></div>
+            <input type="range" id="rr-slider" min="8" max="60" step="1" value="14">
+          </div>
+          <p class="note">Menggeser slider mengubah skenario menjadi "Kustom". RR aktual mengejar target secara bertahap, tidak langsung loncat.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Parameter PID</legend>
+          <div class="row">
+            <div class="top"><label for="kp-slider">Kp</label><span class="val" id="v-kp">0.60</span></div>
+            <input type="range" id="kp-slider" min="0" max="3" step="0.05" value="0.6">
+          </div>
+          <div class="row">
+            <div class="top"><label for="ki-slider">Ki</label><span class="val" id="v-ki">0.15</span></div>
+            <input type="range" id="ki-slider" min="0" max="1" step="0.01" value="0.15">
+          </div>
+          <div class="row">
+            <div class="top"><label for="kd-slider">Kd</label><span class="val" id="v-kd">0.05</span></div>
+            <input type="range" id="kd-slider" min="0" max="1" step="0.01" value="0.05">
+          </div>
+          <div class="eq" id="eq1"></div>
+          <p class="note">
+            RR aktual berubah mengikuti u(t). Kp kecil menghasilkan respons lambat. Ki besar cepat mengejar target
+            tetapi rawan overshoot/osilasi (windup). Kd meredam osilasi (turunan dihitung dari RR aktual agar tidak
+            terjadi derivative kick saat setpoint berubah).
+          </p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Kontrol simulasi</legend>
+          <button class="std" id="toggle-run">Jeda</button>
+        </fieldset>
+      </div>
+
+      <!-- panel simulasi 2 -->
+      <div class="panel" id="panel2">
+        <p class="desc">Sistem kontrol loop tertutup alat asma. Plant adalah paru-paru. Sensor mengukur PEF (arus puncak ekspirasi), kontroler menghitung dosis bronkodilator u(t) untuk mengejar setpoint PEF, dan aktuator (nebulizer/inhaler) memberikan obat ke saluran napas. Pemicu asma berperan sebagai gangguan (disturbance) yang menyempitkan saluran napas.</p>
+
+        <fieldset>
+          <legend>Pemicu asma (gangguan)</legend>
+          <div class="row">
+            <label for="sc2-select">Skenario</label>
+            <select id="sc2-select"></select>
+          </div>
+          <div class="row">
+            <div class="top"><label for="trig-slider">Tingkat pemicu d(t)</label><span class="val" id="v-trig">2 %</span></div>
+            <input type="range" id="trig-slider" min="0" max="100" step="1" value="2">
+          </div>
+          <p class="note">Tingkat pemicu menyatakan seberapa kuat otot polos saluran napas menyempit bila tanpa obat. Menggeser slider mengubah skenario menjadi "Kustom".</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Mode kontrol alat</legend>
+          <label class="radio"><input type="radio" name="ctrl" value="none">Tanpa alat (open loop)</label>
+          <label class="radio"><input type="radio" name="ctrl" value="onoff">On-Off (inhaler rescue)</label>
+          <label class="radio"><input type="radio" name="ctrl" value="pid" checked>PID (nebulizer otomatis)</label>
+          <p class="note" id="ctrl-hint"></p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Setpoint dan batas keamanan</legend>
+          <div class="row">
+            <div class="top"><label for="sp-slider">Setpoint PEF (r)</label><span class="val" id="v-sp">90 %</span></div>
+            <input type="range" id="sp-slider" min="60" max="100" step="1" value="90">
+          </div>
+          <div class="row">
+            <div class="top"><label for="limit-slider">Batas dosis kumulatif</label><span class="val" id="v-limit">60 puff</span></div>
+            <input type="range" id="limit-slider" min="10" max="100" step="5" value="60">
+          </div>
+          <p class="note">PEF dinyatakan dalam % terhadap nilai terbaik pasien (zona hijau &gt; 80%, kuning 50–80%, merah &lt; 50%). Bila dosis kumulatif melewati batas, alat terkunci demi keamanan (efek samping bronkodilator).</p>
+        </fieldset>
+
+        <fieldset id="pid2-group">
+          <legend>Parameter PID</legend>
+          <div class="row">
+            <div class="top"><label for="kp2">Kp</label><span class="val" id="v-kp2">0.012</span></div>
+            <input type="range" id="kp2" min="0" max="0.05" step="0.001" value="0.012">
+          </div>
+          <div class="row">
+            <div class="top"><label for="ki2">Ki</label><span class="val" id="v-ki2">0.0009</span></div>
+            <input type="range" id="ki2" min="0" max="0.003" step="0.0001" value="0.0009">
+          </div>
+          <div class="row">
+            <div class="top"><label for="kd2">Kd</label><span class="val" id="v-kd2">0.10</span></div>
+            <input type="range" id="kd2" min="0" max="0.5" step="0.01" value="0.1">
+          </div>
+          <div class="eq" id="eq2"></div>
+          <p class="note">
+            u dibatasi 0–1 (laju dosis; 1 = 1 puff per 10 detik). Ada anti-windup karena aktuator tidak dapat memberi
+            dosis negatif. Kp besar: cepat tetapi dosis berlebih. Ki besar: overshoot obat karena efek obat tertunda.
+            Kd meredam lonjakan.
+          </p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Waktu simulasi</legend>
+          <div class="row">
+            <div class="top"><label for="scale-slider">Percepatan waktu</label><span class="val" id="v-scale">4×</span></div>
+            <input type="range" id="scale-slider" min="1" max="10" step="1" value="4">
+          </div>
+          <p class="note" style="margin-bottom:10px">Farmakologi obat berlangsung dalam hitungan menit, sehingga waktu simulasi dipercepat. Animasi napas tetap real-time.</p>
+          <button class="std" id="toggle-run2">Jeda</button>
+          <button class="std" id="btn-reset2">Reset</button>
+        </fieldset>
+      </div>
+    </div>
+
+    <!-- ============ KONTEN ============ -->
+    <div id="main">
+
+      <!-- ---------- SIMULASI 1 ---------- -->
+      <div class="view show" id="view1">
+        <div class="top-grid">
+          <figure>
+            <div class="stage"><canvas id="lung1"></canvas></div>
+            <figcaption><b>Gambar 1.</b> Animasi paru dan diafragma pada respirasi normal. Diafragma (pita merah di dasar paru) turun saat inspirasi dan naik saat ekspirasi; kecepatan napas mengikuti RR aktual hasil kontroler PID.</figcaption>
+          </figure>
+          <table class="stat">
+            <caption><b>Tabel 1.</b> Status simulasi</caption>
+            <tr><td>Skenario</td><td id="r-scenario">Kustom</td></tr>
+            <tr><td>Fase napas</td><td><span class="phase-tag insp" id="r-phase">Inspirasi</span></td></tr>
+            <tr><td>Setpoint (target)</td><td id="r-target">14 /menit</td></tr>
+            <tr><td>Laju napas aktual</td><td id="r-rr">14 /menit</td></tr>
+            <tr><td>Durasi 1 siklus</td><td id="r-cycle">— s</td></tr>
+            <tr><td>Status simulasi</td><td id="r-status">Berjalan</td></tr>
+          </table>
+        </div>
+        <h2 class="sec">Hasil simulasi</h2>
+        <div class="charts" id="charts1"></div>
+      </div>
+
+      <!-- ---------- SIMULASI 2 ---------- -->
+      <div class="view" id="view2">
+        <div class="top-grid">
+          <figure>
+            <div class="stage"><canvas id="lung2"></canvas></div>
+            <figcaption><b>Gambar 1.</b> Animasi paru dan diafragma pada asma. Dinding saluran napas berwarna krem bila normal dan merah bila meradang serta menyempit; titik kuning adalah partikel obat dari alat asma. Saat serangan, diafragma (pita merah di dasar paru) mendatar dan turun (hiperinflasi) sementara napas menjadi dangkal.</figcaption>
+          </figure>
+          <table class="stat">
+            <caption><b>Tabel 1.</b> Status pasien dan alat</caption>
+            <tr><td>Skenario</td><td id="r2-scenario">Terkontrol</td></tr>
+            <tr><td>Fase napas</td><td><span class="phase-tag insp" id="r2-phase">Inspirasi</span></td></tr>
+            <tr><td>Zona PEF</td><td><span class="phase-tag zg" id="r2-zone">Hijau</span></td></tr>
+            <tr><td>Pemicu d(t)</td><td id="r2-trig">2 %</td></tr>
+            <tr><td>Penyempitan saluran</td><td id="r2-beff">0 %</td></tr>
+            <tr><td>Hambatan jalan napas R</td><td id="r2-R">2.0 cmH₂O·s/L</td></tr>
+            <tr><td>Laju napas</td><td id="r2-rr">14 /menit</td></tr>
+            <tr><td>Rasio I : E</td><td id="r2-ie">1 : 2.0</td></tr>
+            <tr><td>PEF aktual</td><td id="r2-pef">100 %</td></tr>
+            <tr><td>SpO₂</td><td id="r2-spo2">98 %</td></tr>
+            <tr><td>Dosis u(t)</td><td id="r2-u">0.00</td></tr>
+            <tr><td>Dosis kumulatif</td><td id="r2-dose">0.0 / 60 puff</td></tr>
+            <tr><td>Status alat</td><td id="r2-status">—</td></tr>
+            <tr><td>Waktu simulasi</td><td id="r2-time">00:00</td></tr>
+          </table>
+        </div>
+
+        <h2 class="sec">Diagram blok sistem kontrol</h2>
+        <div class="chart-card wide">
+          <svg class="bd" viewBox="0 0 760 200" role="img" aria-label="Diagram blok kontrol alat asma dengan plant paru-paru">
+            <defs>
+              <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#222"/></marker>
+              <marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#555"/></marker>
+              <marker id="arrc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#a3281a"/></marker>
+            </defs>
+            <!-- setpoint -->
+            <rect class="bx" x="6" y="66" width="94" height="56" rx="2"/>
+            <text class="t1" x="53" y="86" text-anchor="middle">Setpoint r(t)</text>
+            <text class="t2" id="bd-sp" x="53" y="108" text-anchor="middle">90 %</text>
+            <line class="ln" x1="100" y1="94" x2="130" y2="94" marker-end="url(#arr)"/>
+            <!-- penjumlah -->
+            <circle class="bx" cx="146" cy="94" r="15"/>
+            <text class="t2" x="146" y="99" text-anchor="middle">Σ</text>
+            <text class="t3" x="140" y="76" text-anchor="middle">+</text>
+            <text class="t3" x="134" y="126" text-anchor="middle">−</text>
+            <line class="ln" x1="161" y1="94" x2="196" y2="94" marker-end="url(#arr)"/>
+            <text class="t3" id="bd-e" x="178" y="84" text-anchor="middle">e=0</text>
+            <!-- kontroler -->
+            <rect class="bx" x="198" y="62" width="128" height="64" rx="2"/>
+            <text class="t1" x="262" y="82" text-anchor="middle">Kontroler</text>
+            <text class="t2" id="bd-ctrl" x="262" y="102" text-anchor="middle">PID</text>
+            <text class="t3" id="bd-u" x="262" y="118" text-anchor="middle">u = 0.00</text>
+            <line class="ln" x1="326" y1="94" x2="366" y2="94" marker-end="url(#arr)"/>
+            <!-- aktuator -->
+            <rect class="bx" x="368" y="62" width="122" height="64" rx="2"/>
+            <text class="t1" x="429" y="82" text-anchor="middle">Aktuator</text>
+            <text class="t2" x="429" y="100" text-anchor="middle">Nebulizer</text>
+            <text class="t3" id="bd-dose" x="429" y="118" text-anchor="middle">0.0 puff/mnt</text>
+            <line class="ln" x1="490" y1="94" x2="528" y2="94" marker-end="url(#arr)"/>
+            <text class="t3" x="509" y="84" text-anchor="middle">obat</text>
+            <!-- plant -->
+            <rect class="bx plant" x="530" y="62" width="122" height="64" rx="2"/>
+            <text class="t1" x="591" y="82" text-anchor="middle">Plant: paru</text>
+            <text class="t2" id="bd-R" x="591" y="100" text-anchor="middle">R = 2.0</text>
+            <text class="t3" x="591" y="118" text-anchor="middle">cmH₂O·s/L</text>
+            <!-- gangguan -->
+            <rect class="bx dist" x="530" y="6" width="122" height="34" rx="2"/>
+            <text class="t1" x="591" y="20" text-anchor="middle">Pemicu asma d(t)</text>
+            <text class="t3" id="bd-trig" x="591" y="33" text-anchor="middle">2 %</text>
+            <line class="ln dist" x1="591" y1="40" x2="591" y2="60" marker-end="url(#arrc)"/>
+            <!-- output -->
+            <line class="ln" x1="652" y1="94" x2="752" y2="94" marker-end="url(#arr)"/>
+            <text class="t1" x="702" y="80" text-anchor="middle">y(t) = PEF</text>
+            <text class="t2" id="bd-pef" x="702" y="112" text-anchor="middle">100 %</text>
+            <!-- umpan balik -->
+            <circle cx="702" cy="94" r="3" fill="#222"/>
+            <line class="ln fb" x1="702" y1="94" x2="702" y2="170"/>
+            <line class="ln fb" x1="702" y1="170" x2="462" y2="170"/>
+            <rect class="bx" x="334" y="150" width="128" height="40" rx="2"/>
+            <text class="t1" x="398" y="167" text-anchor="middle">Sensor PEF</text>
+            <text class="t3" id="bd-sens" x="398" y="181" text-anchor="middle">terukur = 100 %</text>
+            <line class="ln fb" x1="334" y1="170" x2="146" y2="170"/>
+            <line class="ln fb" x1="146" y1="170" x2="146" y2="111" marker-end="url(#arrg)"/>
+          </svg>
+          <div class="cap"><b>Gambar 2.</b> Diagram blok sistem kontrol alat asma. Nilai pada tiap blok diperbarui secara real-time.</div>
+        </div>
+
+        <h2 class="sec">Hasil simulasi</h2>
+        <div class="charts" id="charts2"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+const $ = id => document.getElementById(id);
+
+/* Rumus PID ditulis sebagai equation (KaTeX). Bila berkas dibuka tanpa koneksi
+   internet sehingga KaTeX gagal dimuat, ditampilkan teks polos sebagai cadangan. */
+function renderEq(id, tex, fallback){
+  const el = $(id);
+  if(!el) return;
+  if(typeof katex !== 'undefined'){
+    try{ katex.render(tex, el, { displayMode:true, throwOnError:false }); return; }catch(err){ console.error(err); }
+  }
+  el.innerHTML = '';
+  const p = document.createElement('div');
+  p.className = 'eq-fallback';
+  p.textContent = fallback;
+  el.appendChild(p);
+}
+renderEq('eq1',
+  String.raw`\begin{aligned} u(t) &= K_p\,e(t) \;+\; K_i\!\int_0^{t} e(\tau)\,d\tau \;+\; K_d\,\frac{de(t)}{dt} \\ e(t) &= r(t) - y(t) \;=\; \text{target} - RR_{\text{aktual}} \end{aligned}`,
+  'u(t) = Kp·e(t) + Ki·∫e dt + Kd·de/dt,  dengan e(t) = target − RR aktual'
+);
+renderEq('eq2',
+  String.raw`\begin{aligned} e(t) &= SP - PEF_{\text{terukur}} \\ u(t) &= \operatorname{clamp}\!\Big(K_p\,e(t) + K_i\!\int_0^{t} e(\tau)\,d\tau - K_d\,\frac{d\,PEF_{\text{terukur}}}{dt} \;,\; 0,\ 1\Big) \end{aligned}`,
+  'e(t) = setpoint − PEF terukur,  u(t) = clamp(Kp·e + Ki·∫e dt − Kd·d(PEF)/dt, 0, 1)'
+);
+const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
+const mixC = (a,b,t) => a.map((v,i)=> Math.round(v + (b[i]-v)*t));
+const rgba = (c,a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+/* Bentuk gelombang satu siklus napas.
+   frac  : posisi dalam siklus (0..1)
+   fi    : fraksi waktu inspirasi
+   p     : eksponen ekspirasi (>1 = ekspirasi cepat di awal lalu ekor panjang, ciri obstruksi) */
+function breathShape(frac, fi, p){
+  if(frac < fi) return 0.5 - 0.5*Math.cos(Math.PI*frac/fi);
+  const s = (frac - fi)/(1 - fi);
+  return Math.pow(0.5 + 0.5*Math.cos(Math.PI*s), p);
+}
+const fmtMMSS = s => { s=Math.max(0,Math.floor(s)); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); };
+
+/* =====================================================================
+   RIWAYAT DATA + GRAFIK
+   ===================================================================== */
+class Hist{
+  constructor(maxT){ this.maxT = maxT; this.t = []; this.d = {}; }
+  push(t, obj){
+    this.t.push(t);
+    for(const k in obj){ (this.d[k] || (this.d[k] = [])).push(obj[k]); }
+    while(this.t.length && t - this.t[0] > this.maxT){
+      this.t.shift();
+      for(const k in this.d) this.d[k].shift();
+    }
+  }
+  clear(){ this.t = []; this.d = {}; }
+}
+
+// warna seri (palet standar plot teknik)
+const COL = { blue:'#0072BD', orange:'#D95319', green:'#4a8f1e', purple:'#7E2F8E', red:'#A2142F', gray:'#777777' };
+
+function makeChart(container, cfg){
+  const card = document.createElement('div');
+  card.className = 'chart-card';
+  card.innerHTML =
+    `<div class="legend">` +
+    cfg.series.map(s => `<span><i style="border-top-color:${s.color};${s.dash?'border-top-style:dashed;':''}"></i>${s.label}</span>`).join('') +
+    `</div><canvas class="chart"></canvas>` +
+    `<div class="cap"><b>Gambar ${cfg.no}.</b> ${cfg.title}.${cfg.note ? ' ' + cfg.note : ''}</div>`;
+  container.appendChild(card);
+  cfg.canvas = card.querySelector('canvas');
+  return cfg;
+}
+
+function drawChart(cfg){
+  const c = cfg.canvas;
+  if(!c || !c.clientWidth) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if(c.width !== Math.round(w*dpr) || c.height !== Math.round(h*dpr)){
+    c.width = Math.round(w*dpr); c.height = Math.round(h*dpr);
+  }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  const pl = 56, pr = 12, pt = 10, pb = 38;
+  const pw = w - pl - pr, ph = h - pt - pb;
+  const H = cfg.hist, W = cfg.window;
+  const tNow = cfg.tNow(), t0 = tNow - W;
+
+  let y0 = cfg.yMin, y1 = cfg.yMax;
+  if(cfg.auto){
+    let lo = Infinity, hi = -Infinity;
+    for(const s of cfg.series){
+      const arr = H.d[s.key]; if(!arr) continue;
+      for(let i=0;i<H.t.length;i++){ if(H.t[i] < t0) continue; lo = Math.min(lo, arr[i]); hi = Math.max(hi, arr[i]); }
+    }
+    if(!isFinite(lo)){ lo = -1; hi = 1; }
+    lo = Math.min(lo, 0); hi = Math.max(hi, 0);
+    const span = Math.max(hi - lo, cfg.minSpan || 1);
+    const mid = (hi+lo)/2;
+    lo = Math.min(lo, mid - span/2); hi = Math.max(hi, mid + span/2);
+    const pad = (hi-lo)*0.08; y0 = lo - pad; y1 = hi + pad;
+  }
+  const X = t => pl + (t - t0)/W*pw;
+  const Y = v => pt + ph - (clamp(v,y0,y1) - y0)/(y1 - y0)*ph;
+
+  // grid + label sumbu
+  ctx.font = '11px "Segoe UI", Arial, sans-serif';
+  ctx.lineWidth = 1;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+  for(let i=0;i<=4;i++){
+    const v = y0 + (y1-y0)*i/4, y = Y(v);
+    ctx.strokeStyle = '#e3e6ea';
+    ctx.beginPath(); ctx.moveTo(pl,y); ctx.lineTo(w-pr,y); ctx.stroke();
+    ctx.fillStyle = '#333';
+    ctx.fillText(v.toFixed(cfg.dec ?? 0), pl-6, y);
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for(let i=0;i<=4;i++){
+    const x = pl + pw*i/4, secsAgo = W*(1 - i/4);
+    ctx.strokeStyle = '#eef0f3';
+    ctx.beginPath(); ctx.moveTo(x,pt); ctx.lineTo(x,pt+ph); ctx.stroke();
+    let lbl;
+    if(i === 4) lbl = '0';
+    else lbl = cfg.xu === 'm' ? '−'+fmtMMSS(secsAgo) : '−'+Math.round(secsAgo);
+    ctx.fillStyle = '#333';
+    ctx.fillText(lbl, x, pt+ph+5);
+  }
+  // garis nol (untuk grafik auto)
+  if(cfg.auto && y0 < 0 && y1 > 0){
+    ctx.strokeStyle = '#aab0b8';
+    ctx.beginPath(); ctx.moveTo(pl,Y(0)); ctx.lineTo(w-pr,Y(0)); ctx.stroke();
+  }
+
+  // seri data
+  ctx.save();
+  ctx.beginPath(); ctx.rect(pl, pt, pw, ph); ctx.clip();
+  for(const s of cfg.series){
+    const arr = H.d[s.key];
+    if(!arr || !arr.length) continue;
+    ctx.beginPath();
+    let started = false, fx = 0, lx = 0;
+    for(let i=0;i<H.t.length;i++){
+      const t = H.t[i];
+      if(t < t0 - W*0.03) continue;
+      const x = X(t), y = Y(arr[i]);
+      if(!started){ ctx.moveTo(x,y); started = true; fx = x; }
+      else ctx.lineTo(x,y);
+      lx = x;
+    }
+    if(!started) continue;
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.width || 1.6; ctx.lineJoin = 'round';
+    ctx.setLineDash(s.dash || []);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if(s.fill){
+      ctx.lineTo(lx, Y(y0));
+      ctx.lineTo(fx, Y(y0));
+      ctx.closePath();
+      ctx.fillStyle = s.fill; ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // bingkai plot
+  ctx.strokeStyle = '#7d858f'; ctx.lineWidth = 1;
+  ctx.strokeRect(pl+0.5, pt+0.5, pw, ph);
+
+  // judul sumbu
+  ctx.fillStyle = '#222'; ctx.font = '11.5px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText(cfg.xu === 'm' ? 'Waktu simulasi, relatif terhadap saat ini (mm:ss)' : 'Waktu, relatif terhadap saat ini (detik)', pl + pw/2, h - 1);
+  ctx.save();
+  ctx.translate(13, pt + ph/2); ctx.rotate(-Math.PI/2);
+  ctx.textBaseline = 'top';
+  ctx.fillText(cfg.ylabel || '', 0, -4);
+  ctx.restore();
+
+  // nilai terkini seri pertama
+  const s0 = cfg.series[0], a0 = H.d[s0.key];
+  if(a0 && a0.length){
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.font = '600 11.5px Consolas, "Courier New", monospace';
+    ctx.fillStyle = s0.color;
+    ctx.fillText(a0[a0.length-1].toFixed(cfg.dec ?? 0) + (cfg.unit || ''), w - pr - 6, pt + 4);
+  }
+}
+
+/* =====================================================================
+   SIMULASI 1  —  Respirasi normal dengan PID laju napas
+   ===================================================================== */
+const scenarios = [
+  { name:'Tidur / Istirahat Dalam', rr:12 },
+  { name:'Istirahat (Normal Dewasa)', rr:16 },
+  { name:'Berjalan Santai', rr:22 },
+  { name:'Cemas Ringan', rr:26 },
+  { name:'Olahraga Sedang (Jogging)', rr:30 },
+  { name:'Demam Tinggi', rr:34 },
+  { name:'Sesak Napas (Dyspnea)', rr:28 },
+  { name:'Olahraga Berat / Sprint', rr:48 },
+  { name:'Panik / Hiperventilasi', rr:38 },
+  { name:'Bayi Baru Lahir (Normal)', rr:45 },
+];
+
+const sc1Select = $('sc1-select');
+const rrSlider = $('rr-slider'), vRR = $('v-rr');
+const rScenario = $('r-scenario'), rPhase = $('r-phase'), rTarget = $('r-target'), rRR = $('r-rr');
+const rCycle = $('r-cycle'), rStatus = $('r-status');
+const toggleBtn = $('toggle-run');
+const kpSlider = $('kp-slider'), kiSlider = $('ki-slider'), kdSlider = $('kd-slider');
+const vKp = $('v-kp'), vKi = $('v-ki'), vKd = $('v-kd');
+
+const M1 = {
+  Kp: parseFloat(kpSlider.value), Ki: parseFloat(kiSlider.value), Kd: parseFloat(kdSlider.value),
+  target: 14, actual: 14, integral: 0, prevY: 14,
+  u: 0, uP: 0, uI: 0, uD: 0, e: 0,
+  label: 'Kustom', running: true, phase: 0, rt: 0, lastSample: -1, V: 2.4, Vprev: 2.4, fi: 1/3
+};
+const RR_MIN = 4, RR_MAX = 70;
+
+function pidStep(dt){
+  dt = Math.max(dt, 1e-3);
+  const e = M1.target - M1.actual;
+  M1.integral += e*dt;
+  const dY = (M1.actual - M1.prevY)/dt;          // turunan dari RR aktual (tanpa derivative kick)
+  M1.prevY = M1.actual;
+  M1.uP = M1.Kp*e;
+  M1.uI = M1.Ki*M1.integral;
+  M1.uD = -M1.Kd*dY;
+  M1.u = M1.uP + M1.uI + M1.uD;                   // u(t) = Kp e + Ki ∫e dt + Kd de/dt
+  M1.e = e;
+  M1.actual = clamp(M1.actual + M1.u*dt, RR_MIN, RR_MAX);
+}
+
+kpSlider.addEventListener('input', ()=>{ M1.Kp = parseFloat(kpSlider.value); vKp.textContent = M1.Kp.toFixed(2); });
+kiSlider.addEventListener('input', ()=>{ M1.Ki = parseFloat(kiSlider.value); vKi.textContent = M1.Ki.toFixed(2); });
+kdSlider.addEventListener('input', ()=>{ M1.Kd = parseFloat(kdSlider.value); vKd.textContent = M1.Kd.toFixed(2); });
+
+function fillSelect(sel, list, unitFn){
+  sel.innerHTML = '<option value="custom">Kustom (atur manual)</option>' +
+    list.map((s,i)=> `<option value="${i}">${s.name} — ${unitFn(s)}</option>`).join('');
+}
+fillSelect(sc1Select, scenarios, s => s.rr + ' napas/menit');
+function syncScenario1(){
+  const idx = scenarios.findIndex(s => s.rr === M1.target && s.name === M1.label);
+  sc1Select.value = idx >= 0 ? String(idx) : 'custom';
+}
+sc1Select.addEventListener('change', ()=>{
+  if(sc1Select.value === 'custom'){ M1.label = 'Kustom'; updateReadout1(); return; }
+  const s = scenarios[parseInt(sc1Select.value,10)];
+  M1.target = s.rr; M1.label = s.name;
+  rrSlider.value = s.rr; vRR.textContent = s.rr + ' /menit';
+  updateReadout1();
+});
+syncScenario1();
+
+rrSlider.addEventListener('input', ()=>{
+  M1.target = parseFloat(rrSlider.value); M1.label = 'Kustom';
+  vRR.textContent = M1.target + ' /menit';
+  syncScenario1(); updateReadout1();
+});
+
+toggleBtn.addEventListener('click', ()=>{
+  M1.running = !M1.running;
+  toggleBtn.textContent = M1.running ? 'Jeda' : 'Jalankan';
+  rStatus.textContent = M1.running ? 'Berjalan' : 'Dijeda';
+});
+
+function updateReadout1(){
+  rTarget.textContent = M1.target.toFixed(0) + ' /menit';
+  rScenario.textContent = M1.label;
+  rRR.textContent = M1.actual.toFixed(1) + ' /menit';
+  rCycle.textContent = (60/M1.actual).toFixed(2) + ' s';
+  const insp = (M1.phase % 1) < M1.fi;
+  rPhase.textContent = insp ? 'Inspirasi' : 'Ekspirasi';
+  rPhase.className = 'phase-tag ' + (insp ? 'insp' : 'exp');
+}
+
+// ---- Grafik simulasi 1 ----
+const H1 = new Hist(65);
+const charts1 = [
+  { no:2, title:'Volume napas (estimasi) terhadap waktu', hist:H1, tNow:()=>M1.rt, window:20, xu:'s', yMin:0, yMax:0.6, dec:2, unit:' L', ylabel:'Volume tidal (L)',
+    series:[{key:'vol', label:'volume tidal', color:COL.blue, fill:'rgba(0,114,189,0.10)'}],
+    note:'Diestimasi dari fase siklus napas yang dihitung dari RR hasil PID (I:E = 1:2).' },
+  { no:3, title:'Laju napas: setpoint dan RR aktual', hist:H1, tNow:()=>M1.rt, window:60, xu:'s', yMin:0, yMax:70, dec:0, unit:' /mnt', ylabel:'Laju napas (napas/menit)',
+    series:[{key:'actual', label:'RR aktual y(t)', color:COL.blue, width:2.2},
+            {key:'target', label:'setpoint r(t)', color:COL.orange, dash:[6,4], width:1.5}],
+    note:'Respons terhadap perubahan setpoint. Amati waktu naik, overshoot, dan osilasi saat Kp, Ki, Kd diubah.' },
+  { no:4, title:'Keluaran kontroler u(t) dan error e(t)', hist:H1, tNow:()=>M1.rt, window:60, xu:'s', auto:true, minSpan:4, dec:1, ylabel:'u(t), e(t)',
+    series:[{key:'u', label:'u(t)', color:COL.orange, width:2},
+            {key:'e', label:'e(t)', color:COL.green, width:1.4}] },
+  { no:5, title:'Komponen kontroler P, I, dan D', hist:H1, tNow:()=>M1.rt, window:60, xu:'s', auto:true, minSpan:4, dec:1, ylabel:'Kontribusi ke u(t)',
+    series:[{key:'uP', label:'P', color:COL.blue},
+            {key:'uI', label:'I', color:COL.green},
+            {key:'uD', label:'D', color:COL.purple}] },
+];
+charts1.forEach(c => makeChart($('charts1'), c));
+
+const S1 = { V:2.4, B:0, flow:0, inspiring:true, drug:0, hasDevice:false };
+function tickM1(dt){
+  if(!M1.running){ S1.flow = 0; return; }
+  pidStep(dt);
+  M1.phase += M1.actual/60*dt;
+  M1.rt += dt;
+  const frac = M1.phase % 1;
+  const shape = breathShape(frac, M1.fi, 1.0);
+  M1.V = 2.4 + 0.5*shape;
+  S1.V = M1.V; S1.inspiring = frac < M1.fi;
+  S1.flow = clamp((M1.V - M1.Vprev)/Math.max(dt,1e-3)/1.6, -1, 1);
+  M1.Vprev = M1.V;
+  if(M1.rt - M1.lastSample >= 0.05){
+    M1.lastSample = M1.rt;
+    H1.push(M1.rt, { vol:0.5*shape, target:M1.target, actual:M1.actual, u:M1.u, e:M1.e, uP:M1.uP, uI:M1.uI, uD:M1.uD });
+  }
+  updateReadout1();
+}
+
+/* =====================================================================
+   SIMULASI 2  —  Paru asma + sistem kontrol alat asma
+   Plant  : paru (hambatan jalan napas R, PEF, SpO2, laju napas)
+   Aktuator: nebulizer/inhaler -> konsentrasi obat -> efek bronkodilator
+   Sensor : PEF (dengan lag & derau kecil)
+   ===================================================================== */
+/*SIM_START*/
+const R0 = 2.0;        // hambatan jalan napas normal (cmH2O·s/L)
+const DMAX = 0.20;     // laju deposisi obat maksimum saat u = 1
+const TAU_A = 60;      // waktu pembersihan obat di saluran napas (s, waktu simulasi)
+const TAU_E = 10;      // tunda menuju efek di otot polos (s)
+const EMAX = 0.95, EC50 = 0.3;
+const TAU_S = 2;       // lag sensor PEF (s)
+const TAU_SPO2 = 8, TAU_RR = 6, TAU_TRIG = 25;
+
+const A = {
+  label:'Terkontrol', trigTarget:0.02, trig:0.02,
+  Ca:0, Ce:0, E:0, Beff:0.02, R:R0, PEF:100, PEFm:100, SpO2:98, RR:14,
+  mode:'pid', SP:90, Kp:0.012, Ki:0.0009, Kd:0.1,
+  integral:0, prevM:100, dF:0, onState:false,
+  u:0, uP:0, uI:0, uD:0, e:0, cum:0, limit:60, locked:false,
+  simT:0, rt:0, scale:4, running:true, phase:0, V:2.4, Vprev:2.4, fi:1/3
+};
+
+function plantOutputs(){
+  A.R = R0*(1 + 9*A.Beff);
+  A.PEF = 100/(1 + 0.244*(A.R/R0 - 1));
+}
+
+function stepAsthma(dt){
+  // 1) pemicu (gangguan) : lag orde-1 menuju target
+  A.trig += (A.trigTarget - A.trig)/TAU_TRIG*dt;
+
+  // 2) kontroler (membaca PEF terukur)
+  const e = A.SP - A.PEFm;
+  let u = 0, uP = 0, uI = 0, uD = 0;
+  if(A.locked || A.mode === 'none'){
+    u = 0;
+  } else if(A.mode === 'onoff'){
+    if(A.PEFm < A.SP - 10) A.onState = true;
+    else if(A.PEFm > A.SP) A.onState = false;
+    u = A.onState ? 0.8 : 0; uP = u;
+  } else {
+    const dRaw = -(A.PEFm - A.prevM)/dt;                 // turunan dari pengukuran (tanpa derivative kick)
+    A.dF += (dRaw - A.dF)*Math.min(1, dt/2);             // filter turunan
+    uP = A.Kp*e; uD = A.Kd*A.dF;
+    const pre = uP + A.Ki*A.integral + uD;
+    if(!(pre > 1 && e > 0)) A.integral += e*dt;          // anti-windup (conditional integration)
+    A.integral = clamp(A.integral, 0, A.Ki > 1e-6 ? 1/A.Ki : 0);
+    uI = A.Ki*A.integral;
+    u = clamp(uP + uI + uD, 0, 1);
+  }
+  A.prevM = A.PEFm;
+  A.e = e; A.u = u; A.uP = uP; A.uI = uI; A.uD = uD;
+
+  // 3) batas dosis kumulatif (1 puff = u=1 selama 10 s)
+  A.cum += u*dt/10;
+  if(A.cum >= A.limit) A.locked = true;
+
+  // 4) farmakokinetik / farmakodinamik obat
+  A.Ca += (DMAX*u - A.Ca/TAU_A)*dt;
+  A.Ce += (A.Ca - A.Ce)/TAU_E*dt;
+  A.E = EMAX*A.Ce/(EC50 + A.Ce);
+
+  // 5) plant paru
+  A.Beff = clamp(A.trig*(1 - A.E), 0, 1);
+  plantOutputs();
+  const spTarget = 98 - 16*Math.pow(A.Beff, 1.3);
+  A.SpO2 += (spTarget - A.SpO2)/TAU_SPO2*dt;
+  const drive = clamp(0.6*(1 - A.PEF/100)/0.7 + 0.4*(98 - A.SpO2)/14, 0, 1);
+  A.RR += ((14 + 30*drive) - A.RR)/TAU_RR*dt;
+
+  // 6) sensor PEF
+  const noise = (Math.random() + Math.random() - 1)*0.4;
+  A.PEFm += (A.PEF + noise - A.PEFm)/TAU_S*dt;
+}
+
+function resetSim(){
+  A.trig = 0.02; A.Ca = 0; A.Ce = 0; A.E = 0; A.Beff = 0.02; A.RR = 14; A.SpO2 = 98;
+  plantOutputs(); A.PEFm = A.PEF; A.prevM = A.PEF;
+  A.integral = 0; A.dF = 0; A.onState = false; A.u = A.uP = A.uI = A.uD = 0; A.e = 0;
+  A.cum = 0; A.locked = false; A.simT = 0; A.rt = 0; A.phase = 0;
+}
+/*SIM_END*/
+plantOutputs(); A.PEFm = A.PEF; A.prevM = A.PEF;
+
+const scenarios2 = [
+  { name:'Terkontrol (tanpa pemicu)', d:0.02 },
+  { name:'Serangan ringan', d:0.35 },
+  { name:'Pemicu alergen (serbuk sari)', d:0.60 },
+  { name:'Asma akibat olahraga', d:0.50 },
+  { name:'Udara dingin / asap', d:0.45 },
+  { name:'Serangan berat (status asmatikus)', d:0.90 },
+];
+const sc2Select = $('sc2-select');
+const trigSlider = $('trig-slider');
+fillSelect(sc2Select, scenarios2, s => 'pemicu ' + Math.round(s.d*100) + ' %');
+function syncScenario2(){
+  const idx = scenarios2.findIndex(s => Math.abs(s.d - A.trigTarget) < 1e-6 && s.name === A.label);
+  sc2Select.value = idx >= 0 ? String(idx) : 'custom';
+}
+sc2Select.addEventListener('change', ()=>{
+  if(sc2Select.value === 'custom'){ A.label = 'Kustom'; return; }
+  const s = scenarios2[parseInt(sc2Select.value,10)];
+  A.trigTarget = s.d; A.label = s.name;
+  trigSlider.value = Math.round(s.d*100); $('v-trig').textContent = Math.round(s.d*100) + ' %';
+});
+syncScenario2();
+
+trigSlider.addEventListener('input', ()=>{
+  A.trigTarget = parseInt(trigSlider.value,10)/100; A.label = 'Kustom';
+  $('v-trig').textContent = trigSlider.value + ' %';
+  syncScenario2();
+});
+
+const ctrlHints = {
+  none: 'Tanpa alat (open loop): pasien tidak menerima obat. Amati bagaimana pemicu menurunkan PEF, menaikkan laju napas, dan menurunkan SpO₂.',
+  onoff: 'On-Off (inhaler rescue): menyemprot 0,8 dosis saat PEF < setpoint − 10%, berhenti saat PEF melewati setpoint. Sederhana, tetapi PEF bergelombang dan obat cenderung berlebih karena efek tertunda.',
+  pid: 'PID (nebulizer otomatis): dosis kontinu proporsional terhadap error PEF, dengan integral untuk menghilangkan error keadaan tunak dan turunan untuk meredam.'
+};
+function setCtrlMode(m){
+  A.mode = m; A.integral = 0; A.dF = 0; A.onState = false;
+  document.querySelectorAll('input[name=ctrl]').forEach(r => { r.checked = (r.value === m); });
+  $('pid2-group').classList.toggle('disabled', m !== 'pid');
+  $('ctrl-hint').textContent = ctrlHints[m];
+}
+document.querySelectorAll('input[name=ctrl]').forEach(r => r.addEventListener('change', ()=>{ if(r.checked) setCtrlMode(r.value); }));
+setCtrlMode('pid');
+
+function bindSlider(id, valId, fmt, apply){
+  const el = $(id), v = $(valId);
+  el.addEventListener('input', ()=>{ const x = parseFloat(el.value); apply(x); v.textContent = fmt(x); });
+}
+bindSlider('sp-slider','v-sp', x => x + ' %', x => { A.SP = x; });
+bindSlider('limit-slider','v-limit', x => x + ' puff', x => { A.limit = x; if(A.cum < A.limit) A.locked = false; });
+bindSlider('kp2','v-kp2', x => x.toFixed(3), x => { A.Kp = x; });
+bindSlider('ki2','v-ki2', x => x.toFixed(4), x => { A.Ki = x; });
+bindSlider('kd2','v-kd2', x => x.toFixed(2), x => { A.Kd = x; });
+bindSlider('scale-slider','v-scale', x => x + '×', x => { A.scale = x; });
+
+$('toggle-run2').addEventListener('click', ()=>{
+  A.running = !A.running;
+  $('toggle-run2').textContent = A.running ? 'Jeda' : 'Jalankan';
+});
+
+const H2 = new Hist(320), H2rt = new Hist(40);
+let lastSim2 = -1, lastRt2 = -1;
+$('btn-reset2').addEventListener('click', ()=>{
+  resetSim(); H2.clear(); H2rt.clear(); lastSim2 = -1; lastRt2 = -1; A.Vprev = A.V;
+});
+
+const charts2 = [
+  { no:3, title:'Volume paru terhadap waktu (real-time)', hist:H2rt, tNow:()=>A.rt, window:20, xu:'s', yMin:2, yMax:4.6, dec:1, unit:' L', ylabel:'Volume paru (L)',
+    series:[{key:'V', label:'volume paru', color:COL.blue, fill:'rgba(0,114,189,0.10)'}],
+    note:'Saat serangan: napas dangkal, ekspirasi memanjang (I:E membesar), dan baseline naik akibat air trapping (hiperinflasi).' },
+  { no:4, title:'PEF terhadap setpoint', hist:H2, tNow:()=>A.simT, window:300, xu:'m', yMin:0, yMax:110, dec:0, unit:' %', ylabel:'PEF (% nilai terbaik)',
+    series:[{key:'PEF', label:'PEF aktual', color:COL.blue, width:2.2},
+            {key:'PEFm', label:'PEF terukur sensor', color:COL.gray, width:1},
+            {key:'sp', label:'setpoint', color:COL.orange, dash:[6,4], width:1.5}],
+    note:'Keluaran plant y(t). Bandingkan mode Tanpa alat, On-Off, dan PID pada pemicu yang sama.' },
+  { no:5, title:'Keluaran kontroler u(t) dan komponen P, I, D', hist:H2, tNow:()=>A.simT, window:300, xu:'m', auto:true, minSpan:1.2, dec:2, ylabel:'u(t) (0–1)',
+    series:[{key:'u', label:'u (dosis, 0–1)', color:COL.orange, width:2.2},
+            {key:'uP', label:'P', color:COL.blue, width:1},
+            {key:'uI', label:'I', color:COL.green, width:1},
+            {key:'uD', label:'D', color:COL.purple, width:1}],
+    note:'u dibatasi 0–1 oleh aktuator; P, I, D ditampilkan sebelum pembatasan.' },
+  { no:6, title:'Efek obat dan dosis kumulatif', hist:H2, tNow:()=>A.simT, window:300, xu:'m', yMin:0, yMax:1.05, dec:2, ylabel:'Efek / dosis (0–1)',
+    series:[{key:'E', label:'efek bronkodilator (0–1)', color:COL.green, width:2},
+            {key:'doseFrac', label:'dosis / batas', color:COL.red, width:1.4, dash:[4,3]}],
+    note:'Efek obat tertinggal dari dosis (tunda farmakokinetik), yang menjadi sumber overshoot pada kontrol PID dan On-Off.' },
+  { no:7, title:'Penyempitan saluran napas dan pemicu', hist:H2, tNow:()=>A.simT, window:300, xu:'m', yMin:0, yMax:1.0, dec:2, ylabel:'Penyempitan (0–1)',
+    series:[{key:'B', label:'penyempitan efektif', color:COL.red, width:2.2},
+            {key:'trig', label:'pemicu d(t)', color:COL.gray, dash:[6,4], width:1.4}],
+    note:'Penyempitan efektif = pemicu × (1 − efek obat).' },
+  { no:8, title:'Hambatan jalan napas R', hist:H2, tNow:()=>A.simT, window:300, xu:'m', yMin:0, yMax:22, dec:0, unit:' cmH₂O·s/L', ylabel:'R (cmH₂O·s/L)',
+    series:[{key:'R', label:'R', color:COL.purple, width:2}] },
+  { no:9, title:'Laju napas (respons kompensasi pasien)', hist:H2, tNow:()=>A.simT, window:300, xu:'m', yMin:0, yMax:60, dec:0, unit:' /mnt', ylabel:'Laju napas (napas/menit)',
+    series:[{key:'RR', label:'laju napas', color:COL.blue, width:2}] },
+  { no:10, title:'Saturasi oksigen SpO₂', hist:H2, tNow:()=>A.simT, window:300, xu:'m', yMin:80, yMax:100, dec:0, unit:' %', ylabel:'SpO₂ (%)',
+    series:[{key:'SpO2', label:'SpO₂', color:COL.green, width:2}] },
+];
+charts2.forEach(c => makeChart($('charts2'), c));
+
+const S2 = { V:2.4, B:0, flow:0, inspiring:true, drug:0, hasDevice:true };
+
+function tickM2(dt){
+  if(!A.running){ S2.flow = 0; return; }
+  const simAcc = dt*A.scale;
+  const n = Math.max(1, Math.ceil(simAcc/0.05)), h = simAcc/n;
+  for(let i=0;i<n;i++) stepAsthma(h);
+  A.simT += simAcc; A.rt += dt;
+
+  // mekanika napas
+  A.phase += A.RR/60*dt;
+  const frac = A.phase % 1;
+  A.fi = 1/(1 + 2 + 3*A.Beff);                       // I:E membesar saat obstruksi
+  const p = 1 + 1.5*A.Beff;
+  const Vt = 0.5*(1 - 0.35*A.Beff);
+  const FRC = 2.4 + 1.3*A.Beff;                      // hiperinflasi
+  A.V = FRC + Vt*breathShape(frac, A.fi, p);
+  S2.V = A.V; S2.B = A.Beff; S2.inspiring = frac < A.fi;
+  S2.flow = clamp((A.V - A.Vprev)/Math.max(dt,1e-3)/1.6, -1, 1);
+  A.Vprev = A.V;
+  S2.drug = A.u; S2.hasDevice = A.mode !== 'none';
+
+  if(A.rt - lastRt2 >= 0.05){ lastRt2 = A.rt; H2rt.push(A.rt, { V:A.V }); }
+  if(A.simT - lastSim2 >= 0.5){
+    lastSim2 = A.simT;
+    H2.push(A.simT, {
+      PEF:A.PEF, PEFm:A.PEFm, sp:A.SP, u:A.u, uP:A.uP, uI:A.uI, uD:A.uD,
+      E:A.E, doseFrac:Math.min(1.05, A.cum/A.limit), B:A.Beff, trig:A.trig,
+      R:A.R, RR:A.RR, SpO2:A.SpO2
+    });
+  }
+}
+
+function updateReadout2(){
+  $('r2-scenario').textContent = A.label;
+  const insp = S2.inspiring;
+  $('r2-phase').textContent = insp ? 'Inspirasi' : 'Ekspirasi';
+  $('r2-phase').className = 'phase-tag ' + (insp ? 'insp' : 'exp');
+  const z = $('r2-zone');
+  if(A.PEF >= 80){ z.textContent = 'Hijau'; z.className = 'phase-tag zg'; }
+  else if(A.PEF >= 50){ z.textContent = 'Kuning'; z.className = 'phase-tag zy'; }
+  else { z.textContent = 'Merah'; z.className = 'phase-tag zr'; }
+  $('r2-trig').textContent = (A.trig*100).toFixed(0) + ' %';
+  $('r2-beff').textContent = (A.Beff*100).toFixed(0) + ' %';
+  $('r2-R').textContent = A.R.toFixed(1) + ' cmH₂O·s/L';
+  $('r2-rr').textContent = A.RR.toFixed(1) + ' /menit';
+  $('r2-ie').textContent = '1 : ' + (1/A.fi - 1).toFixed(1);
+  $('r2-pef').textContent = A.PEF.toFixed(0) + ' %';
+  $('r2-spo2').textContent = A.SpO2.toFixed(1) + ' %';
+  $('r2-u').textContent = A.u.toFixed(2);
+  $('r2-dose').textContent = A.cum.toFixed(1) + ' / ' + A.limit + ' puff';
+  let st;
+  if(A.locked) st = 'Terkunci (batas dosis)';
+  else if(A.mode === 'none') st = 'Tanpa alat';
+  else if(A.mode === 'onoff') st = A.u > 0 ? 'On-Off: menyemprot' : 'On-Off: siaga';
+  else st = A.u > 0.02 ? 'PID: memberi dosis' : 'PID: siaga';
+  $('r2-status').textContent = st;
+  $('r2-time').textContent = fmtMMSS(A.simT) + ' (' + A.scale + '×)';
+
+  // diagram blok
+  $('bd-sp').textContent = A.SP + ' %';
+  $('bd-e').textContent = 'e=' + A.e.toFixed(1);
+  $('bd-ctrl').textContent = A.mode === 'pid' ? 'PID' : (A.mode === 'onoff' ? 'On-Off' : 'Nonaktif');
+  $('bd-u').textContent = 'u = ' + A.u.toFixed(2);
+  $('bd-dose').textContent = (A.u*6).toFixed(1) + ' puff/mnt';
+  $('bd-R').textContent = 'R = ' + A.R.toFixed(1);
+  $('bd-trig').textContent = (A.trig*100).toFixed(0) + ' %';
+  $('bd-pef').textContent = A.PEF.toFixed(0) + ' %';
+  $('bd-sens').textContent = 'terukur = ' + A.PEFm.toFixed(0) + ' %';
+}
+
+/* =====================================================================
+   ANIMASI PARU (canvas) — dipakai simulasi 1 dan 2
+   ===================================================================== */
+const LUNG = { segs:[], leaves:[], parts:[], flowAcc:0 };
+(function buildTree(){
+  const MAXD = 5, CX = 300;
+  LUNG.segs.push({ x1:CX, y1:34, x2:CX, y2:56, rad:15, depth:0 });     // sungut inhaler -> trakea
+  LUNG.segs.push({ x1:CX, y1:56, x2:CX, y2:134, rad:15, depth:0 });    // trakea
+  const base = [[CX,34],[CX,56],[CX,134]];
+  function grow(x, y, a, len, rad, depth, path, side){
+    const x2 = x + side*Math.sin(a)*len, y2 = y + Math.cos(a)*len;
+    const np = path.concat([[x2,y2]]);
+    LUNG.segs.push({ x1:x, y1:y, x2, y2, rad, depth });
+    if(depth >= MAXD){ LUNG.leaves.push({ x:x2, y:y2, path:np }); return; }
+    const sp = 0.42*Math.pow(0.7, depth - 1);
+    grow(x2, y2, Math.max(0.03, a - sp), len*0.74, rad*0.74, depth+1, np, side);
+    grow(x2, y2, Math.max(0.03, a + sp), len*0.74, rad*0.74, depth+1, np, side);
+  }
+  grow(CX, 134, 0.30, 100, 11, 1, base, -1);
+  grow(CX, 134, 0.30, 100, 11, 1, base,  1);
+  LUNG.leaves.forEach(l=>{
+    l.cum = [0];
+    for(let i=1;i<l.path.length;i++){
+      const dx = l.path[i][0]-l.path[i-1][0], dy = l.path[i][1]-l.path[i-1][1];
+      l.cum.push(l.cum[i-1] + Math.hypot(dx,dy));
+    }
+    l.len = l.cum[l.cum.length-1];
+  });
+})();
+
+/* ---- geometri paru & diafragma ---- */
+function domeY(x, D, hd){
+  // permukaan diafragma: kubah yang turun (D) dan mendatar (hd mengecil) saat inspirasi
+  const xn = Math.min(1, Math.abs(x - 300)/210);
+  const off = x < 300 ? -12*xn : 0;               // kubah kanan pasien (sisi kiri gambar) sedikit lebih tinggi
+  return 474 + D + off - hd*(1 - Math.pow(xn, 2.4));
+}
+function lungShape(ctx, side, D, hd){
+  const cx = 300, xi = cx + side*14, xo = cx + side*205;
+  const yl = domeY(xo, D, hd) - 3;
+  ctx.beginPath();
+  ctx.moveTo(xi, 168);
+  ctx.bezierCurveTo(xi, 120, cx + side*40, 98, cx + side*78, 100);            // sisi medial -> apeks
+  ctx.bezierCurveTo(cx + side*130, 102, cx + side*170, 128, cx + side*192, 190); // apeks -> bahu paru
+  ctx.bezierCurveTo(cx + side*206, 240, xo + side*3, 330, xo, yl - 60);         // dinding lateral
+  ctx.quadraticCurveTo(xo + side*1, yl - 14, xo - side*8, yl);                  // sudut bawah
+  const xEnd = cx + side*24, dir = -side;
+  for(let x = xo - side*8; dir*(xEnd - x) > 0; x += dir*10) ctx.lineTo(x, domeY(x, D, hd) - 3);
+  const yEnd = domeY(xEnd, D, hd) - 3;
+  ctx.lineTo(xEnd, yEnd);                                                        // menempel di diafragma
+  ctx.bezierCurveTo(xEnd, yEnd - 40, xi, 330, xi, 250);                          // sisi medial
+  ctx.lineTo(xi, 168);
+  ctx.closePath();
+}
+
+const WALL_N = [242,232,220], WALL_I = [196,58,48];
+
+function drawLung(canvas, S, dt){
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if(!w || !h) return;
+  if(canvas.width !== Math.round(w*dpr) || canvas.height !== Math.round(h*dpr)){
+    canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  const sc = Math.min((w - 40)/540, (h - 24)/548);
+  const ox = (w - 600*sc)/2, oy = h/2 - 274*sc;
+
+  const v = S.V - 2.4, B = S.B;
+  const trap = 1.3*B, tidal = clamp(v - trap, 0, 0.7);
+  const D = 44*tidal + 22*trap;                       // turunnya diafragma (px)
+  const hd = Math.max(8, 34 - 0.45*D);                // tinggi kubah (mendatar saat turun)
+  const sx = 1 + 0.075*v;                             // paru melebar
+  const k = Math.min(1, B*1.1);
+
+  ctx.save();
+  ctx.translate(ox, oy); ctx.scale(sc, sc);
+
+  // ---- kelompok paru (melebar horizontal) ----
+  ctx.save();
+  ctx.translate(300, 0); ctx.scale(sx, 1); ctx.translate(-300, 0);
+
+  // diafragma: pita otot berbentuk kubah, bagian tengah = tendon sentral
+  const bandTop = x => domeY(x, D, hd) - 18*Math.pow(Math.max(0, Math.abs(x - 300) - 196)/34, 2);  // ujung melengkung naik
+  const T = 15;                                        // tebal otot
+  ctx.beginPath();
+  for(let x = 70; x <= 530; x += 8) (x === 70 ? ctx.moveTo(x, bandTop(x)) : ctx.lineTo(x, bandTop(x)));
+  for(let x = 530; x >= 70; x -= 8) ctx.lineTo(x, bandTop(x) + T);
+  ctx.closePath();
+  const dg = ctx.createLinearGradient(0, 440, 0, 560);
+  dg.addColorStop(0, '#c9605a'); dg.addColorStop(1, '#a94a44');
+  ctx.fillStyle = dg; ctx.fill();
+  ctx.strokeStyle = '#8b3b36'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.beginPath();                                     // tendon sentral (lebih pucat)
+  for(let x = 226; x <= 374; x += 8) (x === 226 ? ctx.moveTo(x, bandTop(x) + 3) : ctx.lineTo(x, bandTop(x) + 3));
+  for(let x = 374; x >= 226; x -= 8) ctx.lineTo(x, bandTop(x) + T - 3);
+  ctx.closePath(); ctx.fillStyle = '#efc9c0'; ctx.fill();
+
+  // ---- paru ----
+  const c1 = mixC([247,200,194], [224,124,112], k), c2 = mixC([236,166,158], [200,88,78], k);
+  [-1, 1].forEach(side=>{
+    lungShape(ctx, side, D, hd);
+    const g = ctx.createLinearGradient(0, 100, 0, 540);
+    g.addColorStop(0, rgba(c1, 0.95)); g.addColorStop(1, rgba(c2, 0.95));
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = 'rgba(176,100,92,0.9)'; ctx.lineWidth = 1.6; ctx.stroke();
+  });
+  // fisura antar lobus
+  ctx.save();
+  lungShape(ctx, -1, D, hd); ctx.clip();
+  const ylR = domeY(95, D, hd);
+  ctx.strokeStyle = 'rgba(150,70,62,0.5)'; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(280, 196); ctx.quadraticCurveTo(190, 250, 96, ylR - 50); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(98, 296); ctx.quadraticCurveTo(190, 292, 278, 262); ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  lungShape(ctx, 1, D, hd); ctx.clip();
+  const ylL = domeY(505, D, hd);
+  ctx.strokeStyle = 'rgba(150,70,62,0.5)'; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(322, 196); ctx.quadraticCurveTo(410, 250, 504, ylL - 50); ctx.stroke();
+  ctx.restore();
+
+  // ---- pohon bronkus (ikut turun bersama diafragma) ----
+  ctx.save();
+  ctx.translate(300, 56); ctx.scale(1, 1 + D/340); ctx.translate(-300, -56);
+  ctx.lineCap = 'round';
+  for(const s of LUNG.segs){                       // kontur
+    ctx.strokeStyle = 'rgba(110,64,56,0.42)'; ctx.lineWidth = s.rad + 1.8;
+    ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
+  }
+  for(const s of LUNG.segs){                       // dinding: krem -> merah meradang
+    const Bd = Math.min(1, B*(0.5 + 0.18*s.depth));
+    ctx.strokeStyle = rgba(mixC(WALL_N, WALL_I, Bd), 1);
+    ctx.lineWidth = s.rad;
+    ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
+  }
+  ctx.lineCap = 'butt'; ctx.strokeStyle = 'rgba(120,80,70,0.55)'; ctx.lineWidth = 1;
+  for(const s of LUNG.segs){                       // cincin tulang rawan trakea & bronkus utama
+    if(s.depth > 1 || s.y1 < 56) continue;
+    const dx = s.x2 - s.x1, dy = s.y2 - s.y1, len = Math.hypot(dx,dy), nx = -dy/len, ny = dx/len;
+    for(let d = 4; d < len - 2; d += 7){
+      const px = s.x1 + dx/len*d, py = s.y1 + dy/len*d;
+      ctx.beginPath(); ctx.moveTo(px - nx*s.rad*0.48, py - ny*s.rad*0.48); ctx.lineTo(px + nx*s.rad*0.48, py + ny*s.rad*0.48); ctx.stroke();
+    }
+  }
+  ctx.lineCap = 'round';
+  for(const s of LUNG.segs){                       // lumen menyempit saat bronkokonstriksi
+    const Bd = Math.min(1, B*(0.5 + 0.18*s.depth));
+    ctx.strokeStyle = '#8c5d56';
+    ctx.lineWidth = Math.max(0.5, s.rad*0.62*(1 - 0.93*Bd));
+    ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
+  }
+  // aliran udara
+  LUNG.flowAcc += S.flow*dt*90;
+  const fa = Math.min(1, Math.abs(S.flow)*1.4);
+  if(fa > 0.03){
+    ctx.setLineDash([3, 9]); ctx.lineDashOffset = -LUNG.flowAcc;
+    for(const s of LUNG.segs){
+      const Bd = Math.min(1, B*(0.5 + 0.18*s.depth));
+      ctx.strokeStyle = `rgba(200,236,255,${0.15 + 0.7*fa})`;
+      ctx.lineWidth = Math.max(0.7, s.rad*0.62*(1 - 0.93*Bd)*0.5);
+      ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  // alveoli
+  const ar = 4 + 1.6*v;
+  for(const l of LUNG.leaves){
+    ctx.fillStyle = rgba(mixC([255,240,236], [234,146,136], Math.min(1, B*0.8)), 0.92);
+    ctx.beginPath(); ctx.arc(l.x, l.y, ar, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(176,84,74,0.5)'; ctx.lineWidth = 0.8; ctx.stroke();
+  }
+  // partikel obat
+  if(S.hasDevice && S.inspiring && S.drug > 0.02 && LUNG.parts.length < 260 && Math.random() < S.drug*dt*55){
+    const l = LUNG.leaves[(Math.random()*LUNG.leaves.length)|0];
+    LUNG.parts.push({ l, d:0, sp:120 + Math.random()*70 });
+  }
+  for(let i = LUNG.parts.length-1; i >= 0; i--){
+    const p = LUNG.parts[i];
+    p.d += p.sp*dt*(S.inspiring ? 1 : 0.35);
+    if(p.d >= p.l.len){ LUNG.parts.splice(i,1); continue; }
+    let kk = 1; while(kk < p.l.cum.length && p.l.cum[kk] < p.d) kk++;
+    const t = (p.d - p.l.cum[kk-1])/Math.max(1e-6, p.l.cum[kk] - p.l.cum[kk-1]);
+    const x = p.l.path[kk-1][0] + (p.l.path[kk][0]-p.l.path[kk-1][0])*t;
+    const y = p.l.path[kk-1][1] + (p.l.path[kk][1]-p.l.path[kk-1][1])*t;
+    ctx.fillStyle = '#f2a900'; ctx.strokeStyle = 'rgba(110,60,0,0.7)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.arc(x, y, 2.3, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();   // pohon bronkus
+  ctx.restore();   // kelompok paru
+
+  // perangkat inhaler / nebulizer di ujung trakea
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if(S.hasDevice){
+    const on = S.drug > 0.02;
+    if(on){
+      const rg = ctx.createRadialGradient(300,44,2,300,44,46);
+      rg.addColorStop(0, `rgba(242,169,0,${0.25 + 0.35*S.drug})`); rg.addColorStop(1, 'rgba(242,169,0,0)');
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(300,44,46,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle = on ? '#ffdf8f' : '#fff3d6';
+    ctx.strokeStyle = '#c98a00'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.roundRect(266, 6, 68, 28, 8); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#7a4d00'; ctx.font = '600 10px Consolas, "Courier New", monospace';
+    ctx.fillText(on ? 'DOSIS' : 'SIAGA', 300, 20);
+  } else if(canvas.id === 'lung2'){
+    ctx.fillStyle = '#7d858f'; ctx.font = '600 10px Consolas, "Courier New", monospace';
+    ctx.fillText('TANPA ALAT', 300, 20);
+  }
+  ctx.restore();
+}
+
+/* =====================================================================
+   PENGATUR TAB & LOOP UTAMA
+   ===================================================================== */
+let mode = 1;
+function setMode(m){
+  mode = m;
+  $('tab1').classList.toggle('active', m === 1); $('tab1').setAttribute('aria-selected', m === 1);
+  $('tab2').classList.toggle('active', m === 2); $('tab2').setAttribute('aria-selected', m === 2);
+  $('panel1').classList.toggle('show', m === 1); $('panel2').classList.toggle('show', m === 2);
+  $('view1').classList.toggle('show', m === 1); $('view2').classList.toggle('show', m === 2);
+  $('main').scrollTop = 0; $('side').scrollTop = 0;
+}
+$('tab1').addEventListener('click', ()=> setMode(1));
+$('tab2').addEventListener('click', ()=> setMode(2));
+
+let lastTs = performance.now(), frameCount = 0;
+function frame(now){
+  const dt = Math.min((now - lastTs)/1000, 0.1);
+  lastTs = now; frameCount++;
+
+  if(mode === 1){
+    tickM1(dt);
+    drawLung($('lung1'), S1, M1.running ? dt : 0);
+    if(frameCount % 3 === 0) charts1.forEach(drawChart);
+  } else {
+    tickM2(dt);
+    updateReadout2();
+    drawLung($('lung2'), S2, A.running ? dt : 0);
+    if(frameCount % 3 === 0) charts2.forEach(drawChart);
+  }
+  requestAnimationFrame(frame);
+}
+updateReadout1(); updateReadout2();
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
